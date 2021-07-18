@@ -12,12 +12,15 @@ steer = 0.0
 camX = 0.0
 camY = 0.0
 CRC = 0.0
+TURBO = 25
 
 
+# CONTROL by two sticks and NO letter_button - 0..250 (TURBO = 25), A - 0..500(TURBO = 50), Y - 0..1000(TURBO = 100)
 # Create the handler and set the events functions
 class MyHandler(EventHandler):
 
     def process_button_event(self, event):
+        global TURBO
         if event.button == "LEFT_THUMB":
             print()
         elif event.button == "RIGHT_THUMB":
@@ -39,11 +42,17 @@ class MyHandler(EventHandler):
         elif event.button == "DPAD_DOWN":
             print()
         elif event.button == "A":
-            print()
+            if (TURBO == 50):
+                TURBO = 25
+            else:
+                TURBO = 50
         elif event.button == "B":
             print()
         elif event.button == "Y":
-            print()
+            if (TURBO == 100):
+                TURBO = 25
+            else:
+                TURBO = 100
         elif event.button == "X":
             print()
 
@@ -83,8 +92,8 @@ if __name__ == "__main__":
     thread = GamepadThread(handler)  # initialize controller thread
 
     while True:
-        speed_send = speed * 1000
-        steer_send = steer * 1000
+        speed_send = speed * 10 * TURBO
+        steer_send = steer * 10 * TURBO
         camX_send = camX * 1000
         camY_send = camY * 1000
         array = bytearray(struct.pack("h", int(speed_send)))                #-1000 ... 1000
@@ -93,7 +102,7 @@ if __name__ == "__main__":
         array.extend(bytearray(struct.pack("h", int(camY_send))))           #-1000 ... 1000
         CRC = speed_send + steer_send + camX_send + camY_send
         array.extend(bytearray(struct.pack("h", int(CRC))))                 #1...112
-        #print(speed_send)
+        print(speed_send)
         ser.write(array)
         #print(array)
         print(speed_send, "  ", steer_send, "  ", camX_send, "  ", camY_send )
