@@ -2,9 +2,15 @@ from XInput import *
 
 import serial
 import struct
+import serial.tools.list_ports
 
-
-ser = serial.Serial('COM5', 57600)
+def connetc_COM():
+    ports = list(serial.tools.list_ports.comports())
+    serial_number = "D308ZXNSA"
+    for p in ports:
+        if serial_number == p.serial_number:
+            return serial.Serial(p.device, 57600)
+    print("NO DEVICE FOUND")
 
 
 speed = 0.0
@@ -13,6 +19,10 @@ camX = 0.0
 camY = 0.0
 CRC = 0.0
 TURBO = 25
+TORQUE = 0
+
+drive_X = 0.0
+drive_Y = 0.0
 
 
 # CONTROL by two sticks and NO letter_button - 0..250 (TURBO = 25), A - 0..500(TURBO = 50), Y - 0..1000(TURBO = 100)
@@ -21,6 +31,7 @@ class MyHandler(EventHandler):
 
     def process_button_event(self, event):
         global TURBO
+        global TORQUE
         if event.button == "LEFT_THUMB":
             print()
         elif event.button == "RIGHT_THUMB":
@@ -38,9 +49,9 @@ class MyHandler(EventHandler):
         elif event.button == "DPAD_RIGHT":
             print()
         elif event.button == "DPAD_UP":
-            print()
+            TORQUE = TORQUE + 10
         elif event.button == "DPAD_DOWN":
-            print()
+            TORQUE = TORQUE - 10
         elif event.button == "A":
             if (TURBO == 50):
                 TURBO = 25
@@ -57,11 +68,10 @@ class MyHandler(EventHandler):
             print()
 
     def process_stick_event(self, event):
-        global steer
-        global camX
-        global camY
+        global steer, camX, camY, drive_X, drive_Y
         if event.stick == LEFT:
             steer = event.x
+            drive_Y = event.y
             # print(event.x)
             # print(event.y)
         elif event.stick == RIGHT:
@@ -86,23 +96,24 @@ class MyHandler(EventHandler):
 
 if __name__ == "__main__":
     handler = MyHandler(0,1,2,3)  # initialize handler object
+    ser = connetc_COM()
 
 
 
     thread = GamepadThread(handler)  # initialize controller thread
 
     while True:
-        speed_send = speed * 10 * TURBO
-        steer_send = steer * 10 * TURBO
+        speed_send = drive_Y * 10 * TURBO
+        steer_send = camY * 10 * TURBO
         camX_send = camX * 1000
         camY_send = camY * 1000
         array = bytearray(struct.pack("h", int(speed_send)))                #-1000 ... 1000
-        array.extend(bytearray(struct.pack("h", int(steer_send))))          #-1000 ... 1000
+        array.extend(bytearray(struct.pack("h", int(TORQUE))))          #-1000 ... 1000
         array.extend(bytearray(struct.pack("h", int(camX_send))))           #-1000 ... 1000
         array.extend(bytearray(struct.pack("h", int(camY_send))))           #-1000 ... 1000
         CRC = speed_send + steer_send + camX_send + camY_send
         array.extend(bytearray(struct.pack("h", int(CRC))))                 #1...112
-        print(speed_send)
+        print(TORQUE)
         ser.write(array)
         #print(array)
         print(speed_send, "  ", steer_send, "  ", camX_send, "  ", camY_send )
