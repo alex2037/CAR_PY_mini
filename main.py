@@ -86,10 +86,11 @@ class MyHandler(EventHandler):
             speed = event.value
 
     def process_connection_event(self, event):
+        global TURBO
         if event.type == EVENT_CONNECTED:
             print()
         elif event.type == EVENT_DISCONNECTED:
-            print()
+            TURBO=0
         else:
             print("Unrecognized controller event type")
 
@@ -107,8 +108,8 @@ if __name__ == "__main__":
         steer_send = camY * 10 * TURBO
         camX_send = camX * 1000
         camY_send = camY * 1000
-        array = bytearray(struct.pack("h", int(speed_send)))                #-1000 ... 1000
-        array.extend(bytearray(struct.pack("h", int(TORQUE))))          #-1000 ... 1000
+        array = bytearray(struct.pack("h", int(steer_send)))                #-1000 ... 1000
+        array.extend(bytearray(struct.pack("h", int(speed_send))))          #-1000 ... 1000
         array.extend(bytearray(struct.pack("h", int(camX_send))))           #-1000 ... 1000
         array.extend(bytearray(struct.pack("h", int(camY_send))))           #-1000 ... 1000
         CRC = speed_send + steer_send + camX_send + camY_send
