@@ -5,6 +5,7 @@ import struct
 import serial.tools.list_ports
 import threading
 
+
 def connetc_COM():
     ports = list(serial.tools.list_ports.comports())
     serial_number = "D308ZXNSA"
@@ -69,15 +70,15 @@ class MyHandler(EventHandler):
             print()
 
     def process_stick_event(self, event):
-        global steer, camX, camY, drive_X, drive_Y
+        global steer, speed, camX, camY, drive_X, drive_Y
         if event.stick == LEFT:
-            steer = event.x
+            speed = event.y
             drive_Y = event.y
             # print(event.x)
             # print(event.y)
         elif event.stick == RIGHT:
             camX = event.x
-            camY = event.y
+            steer = event.x
 
     def process_trigger_event(self, event):
         global speed
@@ -97,51 +98,56 @@ class MyHandler(EventHandler):
 
 
 def send_command(serial_port):
-    speed_send = drive_Y * 10 * TURBO
-    steer_send = camY * 10 * TURBO
+    speed_send =(-1)*speed * 10 * TURBO
+    steer_send =steer * 10 * TURBO
+    if(steer_send < 250):
+        steer_send = steer_send * 0.5
     camX_send = camX * 1000
     camY_send = camY * 1000
-    array = bytearray(struct.pack("h", int(steer_send)))  # -1000 ... 1000
-    array.extend(bytearray(struct.pack("h", int(speed_send))))  # -1000 ... 1000
-    array.extend(bytearray(struct.pack("h", int(camX_send))))  # -1000 ... 1000
-    array.extend(bytearray(struct.pack("h", int(camY_send))))  # -1000 ... 1000
+    array = bytearray(struct.pack("h", int(speed_send)))  # -1000 ... 1000
+    array.extend(bytearray(struct.pack("h", int(steer_send))))  # -1000 ... 1000
+    array.extend(bytearray(struct.pack("h", int(0))))  # -1000 ... 1000
+    array.extend(bytearray(struct.pack("h", int(0))))  # -1000 ... 1000
     CRC = speed_send + steer_send + camX_send + camY_send
     array.extend(bytearray(struct.pack("h", int(CRC))))  # 1...112
     serial_port.write(array)
     # print(array)
-    # print(speed_send, "  ", steer_send, "  ", camX_send, "  ", camY_send)
-
+    print(speed_send, "  ", steer_send)
 
 
 def get_telemetry(serial_port):
     if (serial_port.in_waiting > 0):
-        #print(serial_port.read(1))
+        # print(serial_port.read(1))
         if (serial_port.read(1) == b'\xff'):
             if (serial_port.read(1) == b'\xff'):
                 serial_byte_array = serial_port.read(32)
                 T2 = struct.unpack('16h', serial_byte_array)
-#0-F(orward)L(eft)T(ask) 1-FLS(peed) 2-FR(ight)T 3-FRS 4-FD(river)V(oltage)
-#5-M(iddle)LT 6-MLS 7-MRT 8-MRS 9-MDV
-#10-R(ear)LT 11-RLS 12-RRT 13-RRS 14-RDV
+                # 0-F(orward)L(eft)T(ask) 1-FLS(peed) 2-FR(ight)T 3-FRS 4-FD(river)V(oltage)
+                # 5-M(iddle)LT 6-MLS 7-MRT 8-MRS 9-MDV
+                # 10-R(ear)LT 11-RLS 12-RRT 13-RRS 14-RDV
                 if ((T2[0] ^ T2[1] ^ T2[2] ^ T2[3] ^ T2[4] ^ T2[5] ^ T2[6] ^ T2[7] ^ T2[8] ^ T2[9] ^ T2[
                     10] ^ T2[11] ^
                      T2[12] ^ T2[13] ^ T2[14]) == T2[15]):
-                    #print(T2)
-                    print('SPEED \n {FLS}          {FRS} \n {MLS}          {MRS}\n {RLS}           {RRS} '.format(FLS=T2[1],FRS=T2[3],MLS=T2[6],MRS=T2[8],RLS=T2[11],RRS=T2[13]))
-                    print('VOLTAGE FRONT={FDV}          MIDDLE={MDV}          REAR={RDV}'.format(FDV=T2[4],MDV=T2[9],RDV=T2[14]))
-                    print('TASKS \n {FLT}          {FRT} \n {MLT}          {MRT}\n {RLT}           {RRT}'.format(FLT=T2[0],FRT=T2[2],MLT=T2[5],MRT=T2[7],RLT=T2[10],RRT=T2[13]))
+                    # print(T2)
+                    print('SPEED \n {FLS}          {FRS} \n {MLS}          {MRS}\n {RLS}           {RRS} '.format(
+                        FLS=T2[1], FRS=T2[3], MLS=T2[6], MRS=T2[8], RLS=T2[11], RRS=T2[13]))
+                    print('VOLTAGE FRONT={FDV}          MIDDLE={MDV}          REAR={RDV}'.format(FDV=T2[4], MDV=T2[9],
+                                                                                                 RDV=T2[14]))
+                    print('TASKS \n {FLT}          {FRT} \n {MLT}          {MRT}\n {RLT}           {RRT}'.format(
+                        FLT=T2[0], FRT=T2[2], MLT=T2[5], MRT=T2[7], RLT=T2[10], RRT=T2[13]))
+
 
 if __name__ == "__main__":
     handler = MyHandler(0, 1, 2, 3)  # initialize handler object
     ser = connetc_COM()
 
-    data_file = open('data.csv','w')
     thread = GamepadThread(handler)  # initialize controller thread
 
     while True:
         send_command(ser)
         get_telemetry(ser)
-        time.sleep(0.01)
+
+        time.sleep(0.1)
 
     thread.stop()
 
