@@ -4,14 +4,18 @@ import serial
 import struct
 import serial.tools.list_ports
 import threading
+import crcmod
+import csv
+import time
+import atexit
 
 
-def connetc_COM():
+def connetc_COM(ser_number, baudrate):
     ports = list(serial.tools.list_ports.comports())
-    serial_number = "D308ZXNSA"
+    serial_number = ser_number
     for p in ports:
         if serial_number == p.serial_number:
-            return serial.Serial(p.device, 57600)
+            return serial.Serial(p.device, baudrate)
     print("NO DEVICE FOUND")
 
 
@@ -95,8 +99,6 @@ class MyHandler(EventHandler):
             TURBO = 0
         else:
             print("Unrecognized controller event type")
-
-
 def send_command(serial_port):
     speed_send =(-1)*speed * 10 * TURBO
     steer_send =steer * 10 * TURBO
@@ -112,9 +114,7 @@ def send_command(serial_port):
     array.extend(bytearray(struct.pack("h", int(CRC))))  # 1...112
     serial_port.write(array)
     # print(array)
-    print(speed_send, "  ", steer_send)
-
-
+    #print(speed_send, "  ", steer_send)
 def get_telemetry(serial_port):
     if (serial_port.in_waiting > 0):
         # print(serial_port.read(1))
@@ -135,19 +135,71 @@ def get_telemetry(serial_port):
                                                                                                  RDV=T2[14]))
                     print('TASKS \n {FLT}          {FRT} \n {MLT}          {MRT}\n {RLT}           {RRT}'.format(
                         FLT=T2[0], FRT=T2[2], MLT=T2[5], MRT=T2[7], RLT=T2[10], RRT=T2[13]))
+def get_gyro(serial_port):
+    if(serial_port.in_waiting > 0):
+        if (serial_port.read(1) == b'\xAA'):
+            if (serial_port.read(1) == b'\xAA'):
+                if (serial_port.read(1) == b'\x37'):
+                    if (serial_port.read(1) == b'\x70'):
+                        serial_byte_array = serial_port.read(54)
+                        T2 = struct.unpack('=I9f2ifH', serial_byte_array)
+                        #T[0] - state word, T[1,2,3] - Axxel, T[4,5,6] -  angulare speed, T[7,8,9] - angle(Roll, Yaw, Pitch), T[10,11,12] - geo, T[13] - CRC
+                        #print(f'ROLL : {T2[7]},   Yaw : {T2[8]},  Pitch : {T2[9]}')
+                        print(f'Yaw : {T2[8]}')
+def get_gyro_mouse(serial_port):
+    if(serial_port.in_waiting > 0):
+        if(serial_port.read(1) == b'\xAA'):
+            if(serial_port.read(1) == b'\xAA'):
+                if(serial_port.read(1) == b'\x13'):
+                    if(serial_port.read(1) == b'\x4C'):
+                        serial_byte_array = serial_port.read(12)
+                        print(serial_byte_array)
+                        #T2 = struct.unpack('3f', serial_byte_array)
+                        #print(f'Yaw: {T2[0]}')
+
+def thread_log(serial_port, data_file):
+    writer = csv.writer(data_file)
+    while True:
+        if (serial_port.in_waiting > 0):
+            if (serial_port.read(1) == b'\xFF'):
+                if (serial_port.read(1) == b'\xFF'):
+                    serial_byte_array = serial_port.read(28)
+                    T2 = struct.unpack('=I4h4f',serial_byte_array)
+                    writer.writerow(T2)
+                    print(T2)
+
+def Exit_func(file):
+    file.close()
 
 
 if __name__ == "__main__":
-    handler = MyHandler(0, 1, 2, 3)  # initialize handler object
-    ser = connetc_COM()
+
+    # INIT
+    handler = MyHandler(0, 1, 2, 3)  # initialize Xbox controller handler object
+    #ser_holybro = connetc_COM('D308ZXNSA', 57600)
+    #ser_bolid_rs232 = connetc_COM('R4841986051', 460800)
+    ser_bolid_rs485 = connetc_COM('Q6949935051',115200)
+    # ser_r2d2 = connetc_COM('FT2N0AMEA',921600)
+
+    dataFile = open('data.csv','w')
+    #dataFileWriter = csv.writer(dataFile, delimiter=',', quoterchar='"', quoting=csv.QUOTE_MINIMAL)
+
+
 
     thread = GamepadThread(handler)  # initialize controller thread
+    thread_log = threading.Thread(target=thread_log(ser_bolid_rs485,dataFile))
+    thread_log().start()
+
+    atexit.register(Exit_func, dataFile)
 
     while True:
-        send_command(ser)
-        get_telemetry(ser)
+        #send_command(ser_holybro)
+        #get_gyro(ser_bolid_rs232) #packet 112
+        #get_gyro_mouse(ser_bolid_rs485) #packet 76
+        #ser_bolid_rs232.reset_input_buffer()
+        #ts = time.time()
+        time.sleep(0.01)
 
-        time.sleep(0.1)
 
     thread.stop()
 
