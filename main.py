@@ -157,16 +157,15 @@ def get_gyro_mouse(serial_port):
                         #T2 = struct.unpack('3f', serial_byte_array)
                         #print(f'Yaw: {T2[0]}')
 
-def thread_log(serial_port, data_file):
-    writer = csv.writer(data_file)
-    while True:
-        if (serial_port.in_waiting > 0):
+def thread_log(serial_port, writer):
+
+    if (serial_port.in_waiting > 0):
+        if (serial_port.read(1) == b'\xFF'):
             if (serial_port.read(1) == b'\xFF'):
-                if (serial_port.read(1) == b'\xFF'):
-                    serial_byte_array = serial_port.read(28)
-                    T2 = struct.unpack('=I4h4f',serial_byte_array)
-                    writer.writerow(T2)
-                    print(T2)
+                serial_byte_array = serial_port.read(28)
+                T2 = struct.unpack('=I4h4f',serial_byte_array)
+                writer.writerow(T2)
+                print(T2)
 
 def Exit_func(file):
     file.close()
@@ -176,7 +175,7 @@ if __name__ == "__main__":
 
     # INIT
     handler = MyHandler(0, 1, 2, 3)  # initialize Xbox controller handler object
-    #ser_holybro = connetc_COM('D308ZXNSA', 57600)
+    ser_holybro = connetc_COM('D308ZXNSA', 57600)
     #ser_bolid_rs232 = connetc_COM('R4841986051', 460800)
     ser_bolid_rs485 = connetc_COM('Q6949935051',115200)
     # ser_r2d2 = connetc_COM('FT2N0AMEA',921600)
@@ -187,18 +186,14 @@ if __name__ == "__main__":
 
 
     thread = GamepadThread(handler)  # initialize controller thread
-    thread_log = threading.Thread(target=thread_log(ser_bolid_rs485,dataFile))
-    thread_log().start()
 
     atexit.register(Exit_func, dataFile)
-
+    writer = csv.writer(dataFile)
     while True:
-        #send_command(ser_holybro)
-        #get_gyro(ser_bolid_rs232) #packet 112
-        #get_gyro_mouse(ser_bolid_rs485) #packet 76
-        #ser_bolid_rs232.reset_input_buffer()
-        #ts = time.time()
-        time.sleep(0.01)
+        send_command(ser_holybro)
+        thread_log(ser_bolid_rs485, writer)
+
+        time.sleep(0.005)
 
 
     thread.stop()
