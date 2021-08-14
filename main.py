@@ -23,20 +23,14 @@ steer = 0.0
 camX = 0.0
 camY = 0.0
 CRC = 0.0
-TURBO = 25
-TORQUE = 0
 
-drive_X = 0.0
-drive_Y = 0.0
-
+TURBO = 0
 
 # CONTROL by two sticks and NO letter_button - 0..250 (TURBO = 25), A - 0..500(TURBO = 50), Y - 0..1000(TURBO = 100)
 # Create the handler and set the events functions
 class MyHandler(EventHandler):
 
     def process_button_event(self, event):
-        global TURBO
-        global TORQUE
         if event.button == "LEFT_THUMB":
             print()
         elif event.button == "RIGHT_THUMB":
@@ -54,21 +48,15 @@ class MyHandler(EventHandler):
         elif event.button == "DPAD_RIGHT":
             print()
         elif event.button == "DPAD_UP":
-            TORQUE = TORQUE + 10
+            print()
         elif event.button == "DPAD_DOWN":
-            TORQUE = TORQUE - 10
+            print()
         elif event.button == "A":
-            if (TURBO == 50):
-                TURBO = 25
-            else:
-                TURBO = 50
+            print()
         elif event.button == "B":
             print()
         elif event.button == "Y":
-            if (TURBO == 100):
-                TURBO = 25
-            else:
-                TURBO = 100
+            print()
         elif event.button == "X":
             print()
 
@@ -76,44 +64,45 @@ class MyHandler(EventHandler):
         global steer, speed, camX, camY, drive_X, drive_Y
         if event.stick == LEFT:
             speed = event.y
-            drive_Y = event.y
-            # print(event.x)
-            # print(event.y)
+            steer = event.x
         elif event.stick == RIGHT:
             camX = event.x
-            steer = event.x
+            camY = event.y
 
     def process_trigger_event(self, event):
         global speed
+        global TURBO
         if event.trigger == LEFT:
-            a = -event.value
+            print()
         elif event.trigger == RIGHT:
-            a = event.value
+            TURBO = event.value
 
     def process_connection_event(self, event):
-        global TURBO
+        global speed
         if event.type == EVENT_CONNECTED:
             print()
         elif event.type == EVENT_DISCONNECTED:
-            TURBO = 0
+            speed = 0
         else:
             print("Unrecognized controller event type")
 def send_command(serial_port):
-    speed_send =(-1)*speed * 10 * TURBO
-    steer_send =steer * 10 * TURBO
-    if(steer_send < 250):
-        steer_send = steer_send * 0.5
-    camX_send = camX * 1000
-    camY_send = camY * 1000
+    global speed,steer, camX, camY, TURBO
+
+    speed_send =(-1)*(((speed+TURBO) * 500)*speed)
+    steer_send =((steer+TURBO) * 500)*steer
+    camX_send = camX * 1024 + 2048
+    camY_send = camY * 1024 + 2048
+    #camY_send = 2048
+    #camX_send = 2048
     array = bytearray(struct.pack("h", int(speed_send)))  # -1000 ... 1000
-    array.extend(bytearray(struct.pack("h", int((-1)*speed_send))))  # -1000 ... 1000
-    array.extend(bytearray(struct.pack("h", int(0))))  # -1000 ... 1000
-    array.extend(bytearray(struct.pack("h", int(0))))  # -1000 ... 1000
+    array.extend(bytearray(struct.pack("h", int(steer_send))))  # -1000 ... 1000
+    array.extend(bytearray(struct.pack("h", int(camX_send))))  # -1000 ... 1000
+    array.extend(bytearray(struct.pack("h", int(camY_send))))  # -1000 ... 1000
     CRC = speed_send + steer_send + camX_send + camY_send
-    array.extend(bytearray(struct.pack("h", int(CRC))))  # 1...112
+    array.extend(bytearray(struct.pack("h", int(CRC))))  #
     serial_port.write(array)
     # print(array)
-    #print(speed_send, "  ", steer_send)
+    print(speed_send, "  ", steer_send, "   ", camX_send, "   ", camY_send)
 def get_telemetry(serial_port):
     if (serial_port.in_waiting > 0):
         # print(serial_port.read(1))
@@ -155,7 +144,6 @@ def get_gyro_mouse(serial_port):
                         print(serial_byte_array)
                         #T2 = struct.unpack('3f', serial_byte_array)
                         #print(f'Yaw: {T2[0]}')
-
 def thread_log(serial_port, writer):
         if (serial_port.in_waiting > 0):
             if (serial_port.read(1) == b'\xFF'):
@@ -175,23 +163,23 @@ if __name__ == "__main__":
     handler = MyHandler(0, 1, 2, 3)  # initialize Xbox controller handler object
     ser_holybro = connetc_COM('D308ZXNSA', 57600)
     #ser_bolid_rs232 = connetc_COM('R4841986051', 460800)
-    ser_bolid_rs485 = connetc_COM('Q6949935051', 115200)
+    #ser_bolid_rs485 = connetc_COM('Q6949935051', 115200)
     # ser_r2d2 = connetc_COM('FT2N0AMEA',921600)
 
-    data_file = open('data.csv', 'w')
-    writer = csv.writer(data_file)
+    #data_file = open('data.csv', 'w')
+    #writer = csv.writer(data_file)
 
 
     thread = GamepadThread(handler)  # initialize controller thread
 
-    atexit.register(Exit_func, data_file)
+    #atexit.register(Exit_func, data_file)
 
     while True:
         send_command(ser_holybro)
-        thread_log(ser_bolid_rs485, writer)
 
 
-        time.sleep(0.005)
+
+        time.sleep(0.1)
 
 
     thread.stop()
