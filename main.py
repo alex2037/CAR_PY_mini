@@ -4,7 +4,6 @@ import serial
 import struct
 import serial.tools.list_ports
 import threading
-import crcmod
 import csv
 import time
 import atexit
@@ -87,9 +86,9 @@ class MyHandler(EventHandler):
     def process_trigger_event(self, event):
         global speed
         if event.trigger == LEFT:
-            speed = -event.value
+            a = -event.value
         elif event.trigger == RIGHT:
-            speed = event.value
+            a = event.value
 
     def process_connection_event(self, event):
         global TURBO
@@ -107,7 +106,7 @@ def send_command(serial_port):
     camX_send = camX * 1000
     camY_send = camY * 1000
     array = bytearray(struct.pack("h", int(speed_send)))  # -1000 ... 1000
-    array.extend(bytearray(struct.pack("h", int(steer_send))))  # -1000 ... 1000
+    array.extend(bytearray(struct.pack("h", int((-1)*speed_send))))  # -1000 ... 1000
     array.extend(bytearray(struct.pack("h", int(0))))  # -1000 ... 1000
     array.extend(bytearray(struct.pack("h", int(0))))  # -1000 ... 1000
     CRC = speed_send + steer_send + camX_send + camY_send
@@ -158,14 +157,13 @@ def get_gyro_mouse(serial_port):
                         #print(f'Yaw: {T2[0]}')
 
 def thread_log(serial_port, writer):
-
-    if (serial_port.in_waiting > 0):
-        if (serial_port.read(1) == b'\xFF'):
+        if (serial_port.in_waiting > 0):
             if (serial_port.read(1) == b'\xFF'):
-                serial_byte_array = serial_port.read(28)
-                T2 = struct.unpack('=I4h4f',serial_byte_array)
-                writer.writerow(T2)
-                print(T2)
+                if (serial_port.read(1) == b'\xFF'):
+                    serial_byte_array = serial_port.read(28)
+                    T2 = struct.unpack('=I4h4f',serial_byte_array)
+                    writer.writerow(T2)
+                    print(T2)
 
 def Exit_func(file):
     file.close()
@@ -177,21 +175,21 @@ if __name__ == "__main__":
     handler = MyHandler(0, 1, 2, 3)  # initialize Xbox controller handler object
     ser_holybro = connetc_COM('D308ZXNSA', 57600)
     #ser_bolid_rs232 = connetc_COM('R4841986051', 460800)
-    ser_bolid_rs485 = connetc_COM('Q6949935051',115200)
+    ser_bolid_rs485 = connetc_COM('Q6949935051', 115200)
     # ser_r2d2 = connetc_COM('FT2N0AMEA',921600)
 
-    dataFile = open('data.csv','w')
-    #dataFileWriter = csv.writer(dataFile, delimiter=',', quoterchar='"', quoting=csv.QUOTE_MINIMAL)
-
+    data_file = open('data.csv', 'w')
+    writer = csv.writer(data_file)
 
 
     thread = GamepadThread(handler)  # initialize controller thread
 
-    atexit.register(Exit_func, dataFile)
-    writer = csv.writer(dataFile)
+    atexit.register(Exit_func, data_file)
+
     while True:
         send_command(ser_holybro)
         thread_log(ser_bolid_rs485, writer)
+
 
         time.sleep(0.005)
 
